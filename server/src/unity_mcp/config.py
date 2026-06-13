@@ -40,6 +40,12 @@ class Config:
     connect_timeout: float = _get_float("UNITY_MCP_CONNECT_TIMEOUT", 5.0)
     # Seconds to wait for a single command response from Unity.
     request_timeout: float = _get_float("UNITY_MCP_REQUEST_TIMEOUT", 30.0)
+    # Total seconds to keep retrying a command while the bridge is temporarily
+    # unreachable. This covers Unity domain reloads (every script recompile
+    # drops the socket and the bridge restarts a few seconds later).
+    reconnect_timeout: float = _get_float("UNITY_MCP_RECONNECT_TIMEOUT", 60.0)
+    # Seconds to wait between reconnect attempts during that window.
+    reconnect_interval: float = _get_float("UNITY_MCP_RECONNECT_INTERVAL", 0.5)
 
 
 CONFIG = Config()

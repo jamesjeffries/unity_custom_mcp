@@ -34,7 +34,7 @@ async def ping() -> dict[str, Any]:
     """
     endpoint = f"{CONFIG.host}:{CONFIG.port}"
     try:
-        data = await connection.send_command("ping")
+        data = await connection.send_command("ping", wait_for_reconnect=False)
     except UnityConnectionError as exc:
         return {"connected": False, "endpoint": endpoint, "error": str(exc)}
     return {"connected": True, "endpoint": endpoint, "unity": data}

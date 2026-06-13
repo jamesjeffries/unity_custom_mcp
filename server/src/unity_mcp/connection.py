@@ -35,6 +35,9 @@ class UnityConnection:
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._lock = asyncio.Lock()
+        # Whether we have ever reached the bridge in this process. Used to tell
+        # "Unity is mid-recompile, wait for it" apart from "Unity is closed".
+        self._ever_connected = False
 
     @property
     def connected(self) -> bool:
@@ -54,6 +57,7 @@ class UnityConnection:
                 f"{self._config.host}:{self._config.port}. "
                 f"Is the Unity Editor open with the MCP bridge started? ({exc})"
             ) from exc
+        self._ever_connected = True
 
     async def _ensure_connected(self) -> None:
         if not self.connected:
@@ -101,32 +105,59 @@ class UnityConnection:
         return Response.from_dict(payload)
 
     async def send_command(
-        self, command: str, params: dict[str, Any] | None = None
+        self,
+        command: str,
+        params: dict[str, Any] | None = None,
+        *,
+        wait_for_reconnect: bool = True,
     ) -> Any:
         """Send a command to Unity and return its `data`, raising on failure.
 
-        Retries once after reconnecting, which covers the common case where a
-        Unity domain reload silently dropped the previous socket.
+        Transparently survives Unity domain reloads: every script recompile
+        drops the socket and the bridge restarts a few seconds later. While the
+        bridge is unreachable, the command is retried for up to
+        ``reconnect_timeout`` seconds (but only once Unity has been reached at
+        least once, so a genuinely closed Editor still fails fast).
+
+        Pass ``wait_for_reconnect=False`` for diagnostics like ``ping`` that
+        should report unreachability immediately instead of blocking.
         """
         request = Request.create(command, params)
+        loop = asyncio.get_event_loop()
         async with self._lock:
-            for attempt in range(2):
+            wait = wait_for_reconnect and self._ever_connected
+            deadline = loop.time() + (self._config.reconnect_timeout if wait else 0.0)
+            while True:
+                # (Re)establish the connection, tolerating long bridge outages
+                # during a Unity recompile/domain reload.
                 try:
                     await self._ensure_connected()
+                except UnityConnectionError:
+                    await self._close_locked()
+                    if loop.time() < deadline:
+                        await asyncio.sleep(self._config.reconnect_interval)
+                        continue
+                    raise
+
+                # Send the request and read the response.
+                try:
                     response = await self._send_and_receive(request)
                 except (UnityConnectionError, ProtocolError, OSError) as exc:
                     await self._close_locked()
-                    if attempt == 0:
+                    # A reload can drop the socket mid-flight; retry within the
+                    # reconnect window before surfacing the error.
+                    if loop.time() < deadline:
+                        await asyncio.sleep(self._config.reconnect_interval)
                         continue
                     if isinstance(exc, UnityConnectionError):
                         raise
                     raise UnityConnectionError(str(exc)) from exc
+
                 if not response.success:
                     raise UnityConnectionError(
                         response.error or "Unity reported an unknown error"
                     )
                 return response.data
-        raise UnityConnectionError("Failed to communicate with Unity bridge")
 
 
 # Shared singleton used by all tools.

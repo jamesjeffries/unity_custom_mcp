@@ -131,3 +131,58 @@ async def test_reconnects_after_drop() -> None:
     finally:
         await conn.close()
         await bridge.stop()
+
+
+async def test_waits_through_delayed_recompile() -> None:
+    # A script recompile takes the bridge down for a while before it restarts.
+    # Once we have connected at least once, send_command should keep retrying
+    # within the reconnect window instead of failing immediately.
+    bridge = FakeBridge(_ok_responder)
+    await bridge.start()
+    port = bridge.port
+    config = Config(
+        host=bridge.host,
+        port=port,
+        connect_timeout=0.5,
+        reconnect_timeout=5.0,
+        reconnect_interval=0.05,
+    )
+    conn = UnityConnection(config)
+    try:
+        assert await conn.send_command("ping") == {"echo": "ping"}
+
+        # Bridge goes away (domain reload begins).
+        await bridge.stop()
+
+        async def restart_later() -> None:
+            await asyncio.sleep(0.4)
+            revived = FakeBridge(_ok_responder, port=port)
+            await revived.start()
+            return revived
+
+        restart_task = asyncio.create_task(restart_later())
+        # This call starts while the bridge is down and must survive the gap.
+        data = await conn.send_command("script.create")
+        assert data == {"echo": "script.create"}
+        revived = await restart_task
+        await revived.stop()
+    finally:
+        await conn.close()
+
+
+async def test_unreachable_fails_fast_when_never_connected() -> None:
+    # If Unity has never been reached, a bad endpoint should fail fast rather
+    # than blocking for the whole reconnect window.
+    config = Config(
+        host="127.0.0.1",
+        port=1,
+        connect_timeout=0.3,
+        reconnect_timeout=30.0,
+        reconnect_interval=0.1,
+    )
+    conn = UnityConnection(config)
+    loop = asyncio.get_event_loop()
+    start = loop.time()
+    with pytest.raises(UnityConnectionError):
+        await conn.send_command("ping")
+    assert loop.time() - start < 5.0
