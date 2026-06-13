@@ -34,9 +34,37 @@ async def post_with_retry(
     present and otherwise falling back to exponential backoff, then raise for
     status on the final attempt.
     """
+    return await _request_with_retry(
+        "POST", url, headers=headers, timeout=timeout, max_retries=max_retries, json=json
+    )
+
+
+async def get_with_retry(
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: float,
+    params: dict[str, Any] | None = None,
+    max_retries: int = 6,
+) -> httpx.Response:
+    """GET with the same bounded-retry behaviour as :func:`post_with_retry`."""
+    return await _request_with_retry(
+        "GET", url, headers=headers, timeout=timeout, max_retries=max_retries, params=params
+    )
+
+
+async def _request_with_retry(
+    method: str,
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: float,
+    max_retries: int,
+    **kwargs: Any,
+) -> httpx.Response:
     async with httpx.AsyncClient(timeout=timeout) as client:
         for attempt in range(max_retries + 1):
-            resp = await client.post(url, headers=headers, json=json)
+            resp = await client.request(method, url, headers=headers, **kwargs)
             retryable = resp.status_code in (429, 503) or (
                 resp.status_code == 400 and "unknown_model" in resp.text
             )
