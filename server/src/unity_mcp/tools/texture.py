@@ -1,7 +1,8 @@
 """AI texture generation (optional; requires an image model endpoint).
 
 Configure with UNITY_MCP_IMAGE_ENDPOINT and UNITY_MCP_IMAGE_API_KEY (plus
-UNITY_MCP_IMAGE_DEPLOYMENT for Azure OpenAI). When unconfigured, the tool
+UNITY_MCP_IMAGE_MODEL for the deployed model name). The server calls the OpenAI
+v1 images surface, so no api-version is required. When unconfigured, the tool
 returns a friendly notice instead of failing.
 """
 
@@ -41,8 +42,8 @@ def register(mcp: FastMCP) -> None:
                 "configured": False,
                 "message": (
                     "Image generation is not configured. Set UNITY_MCP_IMAGE_ENDPOINT "
-                    "and UNITY_MCP_IMAGE_API_KEY (and UNITY_MCP_IMAGE_DEPLOYMENT for Azure "
-                    "OpenAI)."
+                    "and UNITY_MCP_IMAGE_API_KEY (and UNITY_MCP_IMAGE_MODEL for the "
+                    "deployed model name)."
                 ),
             }
 
@@ -76,19 +77,24 @@ def register(mcp: FastMCP) -> None:
 
 
 async def _generate_image(prompt: str, size: str) -> bytes:
-    """Call the configured images API and return raw PNG bytes."""
-    if CONFIG.image_deployment:
-        url = (
-            f"{CONFIG.image_endpoint.rstrip('/')}/openai/deployments/"
-            f"{CONFIG.image_deployment}/images/generations"
-            f"?api-version={CONFIG.image_api_version}"
-        )
-        headers = {"api-key": CONFIG.image_api_key}
+    """Call the configured images API (OpenAI v1 surface) and return PNG bytes."""
+    endpoint = CONFIG.image_endpoint.rstrip("/")
+    if endpoint.endswith("/images/generations"):
+        url = endpoint
+    elif endpoint.endswith("/v1"):
+        url = f"{endpoint}/images/generations"
     else:
-        url = CONFIG.image_endpoint
-        headers = {"Authorization": f"Bearer {CONFIG.image_api_key}"}
+        url = f"{endpoint}/openai/v1/images/generations"
 
-    payload = {"prompt": prompt, "size": size, "n": 1}
+    headers = {"Authorization": f"Bearer {CONFIG.image_api_key}"}
+    payload: dict[str, Any] = {
+        "prompt": prompt,
+        "size": size,
+        "n": 1,
+        "output_format": "png",
+    }
+    if CONFIG.image_model:
+        payload["model"] = CONFIG.image_model
 
     resp = await post_with_retry(
         url, headers=headers, json=payload, timeout=CONFIG.http_timeout

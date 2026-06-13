@@ -62,14 +62,18 @@ class Config:
     reconnect_interval: float = _get_float("UNITY_MCP_RECONNECT_INTERVAL", 0.5)
 
     # --- Optional AI asset generation (leave unset to disable the feature) ---
-    # Image generation: Azure OpenAI or any OpenAI-compatible images endpoint.
-    # For Azure, set the resource endpoint and the deployment name; the server
-    # builds the full /images/generations URL. For OpenAI-compatible servers,
-    # set the full URL as the endpoint and leave the deployment blank.
+    # Image generation: Azure AI Foundry / Azure OpenAI or any OpenAI-compatible
+    # images endpoint. Set the resource (or base) endpoint; the server appends
+    # the OpenAI v1 route /openai/v1/images/generations when needed and sends the
+    # model name in the request body. No api-version is required for the v1
+    # surface. UNITY_MCP_IMAGE_DEPLOYMENT is accepted as an alias for the model
+    # name for backward compatibility.
     image_endpoint: str = os.environ.get("UNITY_MCP_IMAGE_ENDPOINT", "")
     image_api_key: str = os.environ.get("UNITY_MCP_IMAGE_API_KEY", "")
-    image_deployment: str = os.environ.get("UNITY_MCP_IMAGE_DEPLOYMENT", "")
-    image_api_version: str = os.environ.get("UNITY_MCP_IMAGE_API_VERSION", "2024-10-21")
+    image_model: str = (
+        os.environ.get("UNITY_MCP_IMAGE_MODEL", "")
+        or os.environ.get("UNITY_MCP_IMAGE_DEPLOYMENT", "")
+    )
 
     # Audio generation: ElevenLabs (speech, sound effects, music).
     elevenlabs_api_key: str = os.environ.get("UNITY_MCP_ELEVENLABS_API_KEY", "")
