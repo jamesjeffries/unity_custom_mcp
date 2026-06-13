@@ -1,0 +1,17 @@
+{
+  "name": "com.wethinks.mcp-bridge",
+  "version": "0.1.0",
+  "displayName": "MCP Bridge",
+  "description": "Editor bridge that lets an external MCP server drive the Unity Editor: scenes, GameObjects, assets/prefabs, scripts, console, play mode, and menu items.",
+  "unity": "6000.0",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "ai",
+    "editor",
+    "automation"
+  ],
+  "author": {
+    "name": "WeThinks"
+  }
+}
