@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import re
 from typing import Any
+
+import httpx
 
 from ..connection import connection
 
@@ -13,6 +16,45 @@ def slugify(text: str, fallback: str = "asset") -> str:
     """Turn an arbitrary prompt into a safe, short asset file stem."""
     slug = re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_")
     return slug[:48] or fallback
+
+
+async def post_with_retry(
+    url: str,
+    *,
+    headers: dict[str, str],
+    json: dict[str, Any],
+    timeout: float,
+    max_retries: int = 6,
+) -> httpx.Response:
+    """POST with bounded retries on transient provider failures.
+
+    Image and audio providers commonly rate-limit (429) or briefly route
+    requests to a backend that has not loaded the deployment yet (400
+    ``unknown_model``). We retry those, honouring the ``Retry-After`` header when
+    present and otherwise falling back to exponential backoff, then raise for
+    status on the final attempt.
+    """
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for attempt in range(max_retries + 1):
+            resp = await client.post(url, headers=headers, json=json)
+            retryable = resp.status_code in (429, 503) or (
+                resp.status_code == 400 and "unknown_model" in resp.text
+            )
+            if not retryable or attempt == max_retries:
+                resp.raise_for_status()
+                return resp
+
+            retry_after = resp.headers.get("retry-after")
+            try:
+                delay = float(retry_after) if retry_after else 0.0
+            except ValueError:
+                delay = 0.0
+            delay = min(max(delay, 2.0 * (2**attempt)), 30.0)
+            await asyncio.sleep(delay)
+
+    # Unreachable, but keeps type checkers happy.
+    resp.raise_for_status()
+    return resp
 
 
 async def import_bytes(path: str, data: bytes) -> dict[str, Any]:

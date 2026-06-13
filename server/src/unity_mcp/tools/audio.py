@@ -13,7 +13,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 from ..config import CONFIG
-from ._media import import_bytes, slugify
+from ._media import import_bytes, post_with_retry, slugify
 
 
 def register(mcp: FastMCP) -> None:
@@ -107,7 +107,7 @@ async def _generate_and_import(
 
 async def _post_audio(url: str, payload: dict[str, Any]) -> bytes:
     headers = {"xi-api-key": CONFIG.elevenlabs_api_key, "accept": "audio/mpeg"}
-    async with httpx.AsyncClient(timeout=CONFIG.http_timeout) as client:
-        resp = await client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        return resp.content
+    resp = await post_with_retry(
+        url, headers=headers, json=payload, timeout=CONFIG.http_timeout
+    )
+    return resp.content

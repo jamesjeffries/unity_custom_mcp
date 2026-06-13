@@ -15,7 +15,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ..config import CONFIG
 from ..connection import connection
-from ._media import import_bytes, slugify
+from ._media import import_bytes, post_with_retry, slugify
 
 
 def register(mcp: FastMCP) -> None:
@@ -90,10 +90,10 @@ async def _generate_image(prompt: str, size: str) -> bytes:
 
     payload = {"prompt": prompt, "size": size, "n": 1}
 
-    async with httpx.AsyncClient(timeout=CONFIG.http_timeout) as client:
-        resp = await client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
+    resp = await post_with_retry(
+        url, headers=headers, json=payload, timeout=CONFIG.http_timeout
+    )
+    data = resp.json()
 
     item = (data.get("data") or [{}])[0]
     if item.get("b64_json"):

@@ -12,6 +12,9 @@ dist/
 *.env
 !.env.example
 
+# VS Code workspace settings (local preference)
+.vscode/
+
 # Unity (when this package is embedded in a project)
 [Ll]ibrary/
 [Tt]emp/
