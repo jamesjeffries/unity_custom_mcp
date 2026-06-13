@@ -251,6 +251,7 @@ Point the server at an Azure OpenAI image deployment (e.g. `gpt-image-1` /
 | `UNITY_MCP_IMAGE_ENDPOINT`    | Azure resource endpoint, or a full images URL        |
 | `UNITY_MCP_IMAGE_API_KEY`     | API key                                              |
 | `UNITY_MCP_IMAGE_MODEL`       | Model/deployment name sent in the request body       |
+| `UNITY_MCP_IMAGE_PATH`        | Route after the endpoint (e.g. a FLUX provider path) |
 
 - *"Generate a seamless mossy stone texture and put it on the Ground object."* —
   `texture_generate`. Saves a PNG under `Assets/MCP/Textures`; with a `target` it

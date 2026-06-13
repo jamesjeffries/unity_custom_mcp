@@ -18,8 +18,11 @@ from pathlib import Path
 try:
     from dotenv import find_dotenv, load_dotenv
 
-    load_dotenv(find_dotenv(usecwd=True))
-    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+    # The project's own .env is authoritative (override=True): editing it should
+    # always take effect, even when an editor has injected stale values into the
+    # terminal environment from an earlier copy of the file.
+    load_dotenv(find_dotenv(usecwd=True), override=True)
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
 except ImportError:
     pass
 
@@ -74,6 +77,11 @@ class Config:
         os.environ.get("UNITY_MCP_IMAGE_MODEL", "")
         or os.environ.get("UNITY_MCP_IMAGE_DEPLOYMENT", "")
     )
+    # Route appended to the endpoint. Defaults to the OpenAI v1 images route.
+    # For provider models (e.g. Black Forest Labs FLUX) set the full provider
+    # path including any query string, e.g.
+    # /providers/blackforestlabs/v1/flux-2-pro?api-version=preview
+    image_path: str = os.environ.get("UNITY_MCP_IMAGE_PATH", "")
 
     # Audio generation: ElevenLabs (speech, sound effects, music).
     elevenlabs_api_key: str = os.environ.get("UNITY_MCP_ELEVENLABS_API_KEY", "")

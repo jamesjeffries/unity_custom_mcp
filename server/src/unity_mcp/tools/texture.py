@@ -59,7 +59,8 @@ def register(mcp: FastMCP) -> None:
             return {"configured": True, "ok": False, "error": f"Image request failed: {exc}"}
 
         slug = slugify(name or prompt)
-        path = f"{CONFIG.texture_folder}/{slug}.png"
+        ext = _image_extension(image)
+        path = f"{CONFIG.texture_folder}/{slug}.{ext}"
         result: dict[str, Any] = {
             "configured": True,
             "ok": True,
@@ -77,24 +78,36 @@ def register(mcp: FastMCP) -> None:
 
 
 async def _generate_image(prompt: str, size: str) -> bytes:
-    """Call the configured images API (OpenAI v1 surface) and return PNG bytes."""
+    """Call the configured images API and return raw image bytes.
+
+    Supports the OpenAI v1 images route (``size`` in the body) and provider
+    routes such as Black Forest Labs FLUX (``width``/``height`` in the body).
+    """
     endpoint = CONFIG.image_endpoint.rstrip("/")
-    if endpoint.endswith("/images/generations"):
+    path = CONFIG.image_path.strip()
+
+    if "/images/generations" in endpoint or "/providers/" in endpoint:
         url = endpoint
+    elif path:
+        url = endpoint + (path if path.startswith("/") else "/" + path)
     elif endpoint.endswith("/v1"):
         url = f"{endpoint}/images/generations"
     else:
         url = f"{endpoint}/openai/v1/images/generations"
 
+    is_provider = "/providers/" in url or "blackforestlabs" in url.lower()
+
     headers = {"Authorization": f"Bearer {CONFIG.image_api_key}"}
-    payload: dict[str, Any] = {
-        "prompt": prompt,
-        "size": size,
-        "n": 1,
-        "output_format": "png",
-    }
+    payload: dict[str, Any] = {"prompt": prompt, "n": 1}
     if CONFIG.image_model:
         payload["model"] = CONFIG.image_model
+    if is_provider:
+        width, height = _parse_size(size)
+        payload["width"] = width
+        payload["height"] = height
+    else:
+        payload["size"] = size
+        payload["output_format"] = "png"
 
     resp = await post_with_retry(
         url, headers=headers, json=payload, timeout=CONFIG.http_timeout
@@ -112,3 +125,19 @@ async def _generate_image(prompt: str, size: str) -> bytes:
             return img.content
 
     raise httpx.HTTPError("Image API returned no image data")
+
+
+def _parse_size(size: str) -> tuple[int, int]:
+    """Turn a "WIDTHxHEIGHT" string into integers, defaulting to 1024x1024."""
+    try:
+        width_str, height_str = size.lower().split("x", 1)
+        return int(width_str), int(height_str)
+    except (ValueError, AttributeError):
+        return 1024, 1024
+
+
+def _image_extension(data: bytes) -> str:
+    """Pick a file extension from the image's magic bytes."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "jpg"
+    return "png"
