@@ -8,7 +8,18 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from . import asset, console, editor, gameobject, menu, scene, script
+from . import (
+    asset,
+    audio,
+    console,
+    editor,
+    gameobject,
+    generator,
+    menu,
+    scene,
+    script,
+    texture,
+)
 
 
 def register_all(mcp: FastMCP) -> None:
@@ -20,6 +31,9 @@ def register_all(mcp: FastMCP) -> None:
     console.register(mcp)
     editor.register(mcp)
     menu.register(mcp)
+    generator.register(mcp)
+    texture.register(mcp)
+    audio.register(mcp)
 
 
 __all__ = ["register_all"]

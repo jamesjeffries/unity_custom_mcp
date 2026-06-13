@@ -50,6 +50,7 @@ namespace WeThinks.Mcp.Editor
             ConsoleHandler.Register();
             EditorHandler.Register();
             MenuHandler.Register();
+            GeneratorHandler.Register();
         }
 
         /// <summary>

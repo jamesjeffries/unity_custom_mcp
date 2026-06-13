@@ -47,5 +47,43 @@ class Config:
     # Seconds to wait between reconnect attempts during that window.
     reconnect_interval: float = _get_float("UNITY_MCP_RECONNECT_INTERVAL", 0.5)
 
+    # --- Optional AI asset generation (leave unset to disable the feature) ---
+    # Image generation: Azure OpenAI or any OpenAI-compatible images endpoint.
+    # For Azure, set the resource endpoint and the deployment name; the server
+    # builds the full /images/generations URL. For OpenAI-compatible servers,
+    # set the full URL as the endpoint and leave the deployment blank.
+    image_endpoint: str = os.environ.get("UNITY_MCP_IMAGE_ENDPOINT", "")
+    image_api_key: str = os.environ.get("UNITY_MCP_IMAGE_API_KEY", "")
+    image_deployment: str = os.environ.get("UNITY_MCP_IMAGE_DEPLOYMENT", "")
+    image_api_version: str = os.environ.get("UNITY_MCP_IMAGE_API_VERSION", "2024-10-21")
+
+    # Audio generation: ElevenLabs (speech, sound effects, music).
+    elevenlabs_api_key: str = os.environ.get("UNITY_MCP_ELEVENLABS_API_KEY", "")
+    elevenlabs_base_url: str = os.environ.get(
+        "UNITY_MCP_ELEVENLABS_BASE_URL", "https://api.elevenlabs.io"
+    )
+    elevenlabs_voice_id: str = os.environ.get(
+        "UNITY_MCP_ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"
+    )
+    elevenlabs_model: str = os.environ.get(
+        "UNITY_MCP_ELEVENLABS_MODEL", "eleven_multilingual_v2"
+    )
+
+    # Where generated assets are written inside the Unity project.
+    texture_folder: str = os.environ.get("UNITY_MCP_TEXTURE_FOLDER", "Assets/MCP/Textures")
+    audio_folder: str = os.environ.get("UNITY_MCP_AUDIO_FOLDER", "Assets/MCP/Audio")
+    # Seconds to wait on outbound HTTP calls to the AI providers.
+    http_timeout: float = _get_float("UNITY_MCP_HTTP_TIMEOUT", 120.0)
+
+    @property
+    def is_image_configured(self) -> bool:
+        """True when an image-generation endpoint and key are available."""
+        return bool(self.image_endpoint and self.image_api_key)
+
+    @property
+    def is_audio_configured(self) -> bool:
+        """True when an ElevenLabs API key is available."""
+        return bool(self.elevenlabs_api_key)
+
 
 CONFIG = Config()

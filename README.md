@@ -114,6 +114,16 @@ You don't call tools by name — just describe what you want and the agent maps 
 to the tools below. Each example is a natural-language prompt you can paste into
 Agent mode.
 
+The toolset has two layers:
+
+- **Low-level tools** — one focused Unity operation each (create a GameObject,
+  set a property, read a script). Compose them for fine-grained control.
+- **High-level generators** — single calls that compose many operations into a
+  finished result (a playable first-person player, a procedural terrain, a field
+  of scattered objects). See [High-level generators](#high-level-generators).
+
+## Low-level tools
+
 ### Scenes
 
 - *"What scene is currently open?"* — `scene_get_active`
@@ -184,6 +194,76 @@ Agent mode.
 - *"Which Unity menu items can you run?"* — `menu_list_allowed`
 - *"Refresh the asset database."* — `menu_execute` (`Assets/Refresh`)
 
+## High-level generators
+
+These compose many low-level operations into a single call, so one prompt
+produces a finished result instead of dozens of round-trips.
+
+- *"Add a first-person player I can walk around with."* —
+  `generate_first_person_player`. Creates a capsule with a `CharacterController`,
+  an eye-height camera, and a precompiled controller: **WASD** move, **mouse**
+  look, **Space** jump, **Left Ctrl / C** crawl. Enter play mode and move around.
+  Because the controller ships precompiled in the package's runtime assembly, it
+  attaches instantly with no script recompile.
+- *"Generate a 500×500 terrain with a mountain range and meadows, seed 42."* —
+  `generate_terrain`. Builds a Unity `Terrain` from layered Perlin/ridged noise
+  (rolling hills, a masked mountain band, flattened meadows) and saves the
+  `TerrainData` under `Assets/MCP/Terrain`. Reuse the seed to reproduce a layout.
+- *"Scatter 200 trees from Assets/Trees/Pine.prefab across the terrain."* —
+  `generate_scatter`. Places many instances of a prefab (or a primitive) over an
+  area in one call, optionally raycasting each onto the ground, with random yaw
+  and scale. Reproducible via `seed`.
+
+> ℹ️ The first-person controller reads the **legacy Input Manager** axes, so set
+> **Project Settings ▸ Player ▸ Active Input Handling** to *Input Manager (Old)*
+> or *Both*.
+
+## AI asset generation (optional)
+
+The server can call **your own** external AI services to generate textures and
+audio and import them straight into the project. These tools are **off by
+default** — until you set the relevant environment variables, each tool returns a
+friendly `"configured": false` notice instead of failing, and everything else
+keeps working.
+
+### Textures (image model)
+
+Point the server at an Azure OpenAI image deployment (e.g. `gpt-image-1` /
+`dall-e-3`) or any OpenAI-compatible images endpoint:
+
+| Variable                      | Purpose                                              |
+| ----------------------------- | ---------------------------------------------------- |
+| `UNITY_MCP_IMAGE_ENDPOINT`    | Azure resource endpoint, or a full images URL        |
+| `UNITY_MCP_IMAGE_API_KEY`     | API key                                              |
+| `UNITY_MCP_IMAGE_DEPLOYMENT`  | Azure deployment name (omit for OpenAI-compatible)   |
+| `UNITY_MCP_IMAGE_API_VERSION` | Azure API version (default `2024-10-21`)             |
+
+- *"Generate a seamless mossy stone texture and put it on the Ground object."* —
+  `texture_generate`. Saves a PNG under `Assets/MCP/Textures`; with a `target` it
+  also builds a material (URP `_BaseMap` / built-in `_MainTex`) and assigns it.
+
+### Audio (ElevenLabs)
+
+Provide an ElevenLabs key to generate speech, sound effects, and music:
+
+| Variable                        | Purpose                                            |
+| ------------------------------- | -------------------------------------------------- |
+| `UNITY_MCP_ELEVENLABS_API_KEY`  | ElevenLabs API key                                 |
+| `UNITY_MCP_ELEVENLABS_VOICE_ID` | Default voice for speech (optional)                |
+| `UNITY_MCP_ELEVENLABS_MODEL`    | TTS model (default `eleven_multilingual_v2`)       |
+| `UNITY_MCP_ELEVENLABS_BASE_URL` | API base URL (default `https://api.elevenlabs.io`) |
+
+- *"Have the NPC say 'Welcome, traveler.'"* — `audio_generate_speech`
+- *"Make a footsteps-on-gravel sound effect."* — `audio_generate_sound_effect`
+- *"Generate a calm ambient exploration loop."* — `audio_generate_music`
+
+Generated MP3s land under `Assets/MCP/Audio` and import as `AudioClip`s. (The
+music endpoint may require beta access on your account; any provider error is
+returned in the result.)
+
+Optional knobs: `UNITY_MCP_TEXTURE_FOLDER`, `UNITY_MCP_AUDIO_FOLDER`, and
+`UNITY_MCP_HTTP_TIMEOUT`.
+
 ## Things to know
 
 - **Recompiles and play mode drop the bridge briefly.** `script_create`,
@@ -212,6 +292,8 @@ Agent mode.
 | `console_*`  | get logs (by level), clear                                       |
 | `editor_*`   | state, enter/exit play, pause, step                              |
 | `menu_*`     | execute allowlisted menu items, list allowlist                   |
+| `generate_*` | first-person player, procedural terrain, prefab/primitive scatter |
+| `texture_* / audio_*` | optional AI texture & audio generation (see above)      |
 
 ## Development
 
