@@ -16,7 +16,7 @@ this folder's `package.json`.
 **From Git:** Window > Package Manager > + > Add package from git URL…
 
 ```
-https://…/unity_custom_mcp.git?path=/unity-bridge/com.wethinks.mcp-bridge
+https://github.com/jamesjeffries/unity_custom_mcp.git?path=/unity-bridge/com.wethinks.mcp-bridge
 ```
 
 ## Use

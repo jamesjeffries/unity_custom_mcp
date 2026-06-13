@@ -29,8 +29,8 @@ In your Unity 6 (6000.x) project: **Window > Package Manager > + > Add package
 from disk…** and select
 `unity-bridge/com.wethinks.mcp-bridge/package.json`.
 
-(Or add from a Git URL once this repo is hosted:
-`https://…/unity_custom_mcp.git?path=/unity-bridge/com.wethinks.mcp-bridge`.)
+(Or add from a Git URL:
+`https://github.com/jamesjeffries/unity_custom_mcp.git?path=/unity-bridge/com.wethinks.mcp-bridge`.)
 
 Then open **Window > MCP Bridge** and confirm it shows
 `Listening on 127.0.0.1:6400` (it auto-starts on load).
