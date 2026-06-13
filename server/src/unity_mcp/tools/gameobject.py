@@ -93,6 +93,22 @@ def register(mcp: FastMCP) -> None:
         )
 
     @mcp.tool()
+    async def gameobject_set_color(
+        target: str, color: list[float]
+    ) -> dict[str, Any]:
+        """Set the color of a GameObject's renderer.
+
+        color is an [r, g, b] or [r, g, b, a] array with each component in the
+        0..1 range (e.g. [1, 0, 0] for red). Creates a material asset under
+        Assets/MCP/Materials and assigns it, working across the Built-in, URP,
+        and HDRP render pipelines.
+        """
+        return await connection.send_command(
+            "gameobject.set_color",
+            {"target": target, "color": color},
+        )
+
+    @mcp.tool()
     async def gameobject_set_parent(
         target: str, parent: str | None, keep_world_position: bool = True
     ) -> dict[str, Any]:

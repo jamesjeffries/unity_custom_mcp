@@ -61,7 +61,7 @@ thing to call when debugging setup.
 | Group        | Examples                                                        |
 | ------------ | --------------------------------------------------------------- |
 | `scene_*`    | open, save, new, active scene, hierarchy                        |
-| `gameobject_*` | create, find, components, transform, properties, parent, delete |
+| `gameobject_*` | create, find, components, transform, color, properties, parent, delete |
 | `asset_* / prefab_*` | find, info, folders, delete, instantiate, create, apply  |
 | `script_*`   | list, read, create, update, delete (sandboxed to `Assets/`)     |
 | `console_*`  | get logs (by level), clear                                       |

@@ -15,6 +15,7 @@ namespace WeThinks.Mcp.Editor
             CommandRegistry.Register("gameobject.add_component", AddComponent);
             CommandRegistry.Register("gameobject.set_transform", SetTransform);
             CommandRegistry.Register("gameobject.set_property", SetProperty);
+            CommandRegistry.Register("gameobject.set_color", SetColor);
             CommandRegistry.Register("gameobject.set_parent", SetParent);
             CommandRegistry.Register("gameobject.delete", Delete);
         }
@@ -308,6 +309,104 @@ namespace WeThinks.Mcp.Editor
                     throw new NotSupportedException(
                         $"Setting properties of type {prop.propertyType} is not supported.");
             }
+        }
+
+        private static object SetColor(CommandParams p)
+        {
+            GameObject go = HandlerUtil.RequireGameObject(p.GetString("target"));
+            float[] rgba = p.GetColor("color");
+            if (rgba == null)
+            {
+                throw new ArgumentException(
+                    "'color' must be an [r, g, b] or [r, g, b, a] array with " +
+                    "components in the 0..1 range.");
+            }
+
+            var renderer = go.GetComponent<Renderer>();
+            if (renderer == null)
+            {
+                throw new InvalidOperationException(
+                    $"GameObject '{go.name}' has no Renderer to color.");
+            }
+
+            var color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+
+            // Reuse the existing shader so the material looks right under the
+            // project's render pipeline (URP/HDRP/Built-in); fall back sensibly.
+            Shader shader = renderer.sharedMaterial != null && renderer.sharedMaterial.shader != null
+                ? renderer.sharedMaterial.shader
+                : Shader.Find("Universal Render Pipeline/Lit")
+                  ?? Shader.Find("Standard");
+
+            var material = new Material(shader) { name = go.name + " Material" };
+            ApplyColor(material, color);
+
+            const string folder = "Assets/MCP/Materials";
+            EnsureFolder(folder);
+            string assetPath = AssetDatabase.GenerateUniqueAssetPath(
+                $"{folder}/{SanitizeFileName(go.name)}.mat");
+            AssetDatabase.CreateAsset(material, assetPath);
+
+            Undo.RecordObject(renderer, "MCP Set Color");
+            renderer.sharedMaterial = material;
+            AssetDatabase.SaveAssets();
+
+            return new Dictionary<string, object>
+            {
+                { "target", HandlerUtil.GetHierarchyPath(go.transform) },
+                { "material", assetPath },
+                { "color", new Dictionary<string, object>
+                    {
+                        { "r", color.r },
+                        { "g", color.g },
+                        { "b", color.b },
+                        { "a", color.a }
+                    }
+                }
+            };
+        }
+
+        private static void ApplyColor(Material material, Color color)
+        {
+            // URP/HDRP use _BaseColor; the built-in pipeline uses _Color.
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+
+            material.color = color;
+        }
+
+        private static void EnsureFolder(string folder)
+        {
+            if (AssetDatabase.IsValidFolder(folder))
+            {
+                return;
+            }
+
+            string parent = System.IO.Path.GetDirectoryName(folder).Replace('\\', '/');
+            string leaf = System.IO.Path.GetFileName(folder);
+            if (!AssetDatabase.IsValidFolder(parent))
+            {
+                EnsureFolder(parent);
+            }
+
+            AssetDatabase.CreateFolder(parent, leaf);
+        }
+
+        private static string SanitizeFileName(string name)
+        {
+            foreach (char c in System.IO.Path.GetInvalidFileNameChars())
+            {
+                name = name.Replace(c, '_');
+            }
+
+            return string.IsNullOrEmpty(name) ? "Material" : name;
         }
 
         private static object SetParent(CommandParams p)

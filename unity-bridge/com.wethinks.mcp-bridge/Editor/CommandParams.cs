@@ -95,5 +95,27 @@ namespace WeThinks.Mcp.Editor
 
             return result;
         }
+
+        /// <summary>
+        /// Reads a color as a 3- (RGB) or 4-element (RGBA) numeric array with
+        /// components in the 0..1 range, or null when the key is absent.
+        /// </summary>
+        public float[] GetColor(string key)
+        {
+            if (!(Raw(key) is List<object> list) || list.Count < 3)
+            {
+                return null;
+            }
+
+            var result = new float[4];
+            result[3] = 1f;
+            int count = list.Count >= 4 ? 4 : 3;
+            for (int i = 0; i < count; i++)
+            {
+                result[i] = list[i] is double d ? (float)d : list[i] is long l ? l : 0f;
+            }
+
+            return result;
+        }
     }
 }
