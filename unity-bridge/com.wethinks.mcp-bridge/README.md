@@ -29,6 +29,41 @@ on `127.0.0.1:6400`. The window lets you:
 - Toggle auto-start.
 - Start / Stop / Restart manually.
 
+> The bridge is only half of the system. It does nothing on its own — it waits
+> for the **`unity-mcp` Python server** to connect, which in turn is driven by an
+> MCP client (VS Code Copilot, Claude Desktop, Cursor). Complete the steps below
+> to actually run it end to end.
+
+## Run it end to end
+
+1. **Start the bridge** (this package). Open the project in Unity 6; the bridge
+   auto-starts. Confirm **Window > MCP Bridge** shows
+   `Listening on 127.0.0.1:6400`.
+
+2. **Start the Python MCP server.** From the
+   [`server/`](https://github.com/jamesjeffries/unity_custom_mcp/tree/main/server)
+   folder of the repo:
+
+   ```bash
+   cd server
+   python3 -m venv .venv          # needs Python 3.10+
+   . .venv/bin/activate
+   pip install -e .
+   ```
+
+3. **Point your MCP client at the server.** Configure an MCP **stdio** server
+   whose command is the `unity-mcp` console script inside `server/.venv`. The
+   repo ships a ready-to-use
+   [`.vscode/mcp.json`](https://github.com/jamesjeffries/unity_custom_mcp/blob/main/.vscode/mcp.json)
+   for VS Code.
+
+4. **Try it.** Ask your assistant: *"Use ping to check Unity, then create a red
+   cube."* The `ping` tool reports connectivity even when Unity is closed, so
+   it's the first thing to call when debugging setup.
+
+If you change the port in the MCP Bridge window, set `UNITY_MCP_PORT` to the same
+value for the Python server.
+
 ## How it works
 
 - `McpServer` (`[InitializeOnLoad]`) runs a `TcpListener` on a background thread,
