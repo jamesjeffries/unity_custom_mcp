@@ -5,6 +5,9 @@
   "description": "Editor bridge that lets an external MCP server drive the Unity Editor: scenes, GameObjects, assets/prefabs, scripts, console, play mode, and menu items.",
   "unity": "6000.0",
   "license": "MIT",
+  "dependencies": {
+    "com.unity.inputsystem": "1.7.0"
+  },
   "documentationUrl": "https://github.com/jamesjeffries/unity_custom_mcp/tree/main/unity-bridge/com.wethinks.mcp-bridge",
   "changelogUrl": "https://github.com/jamesjeffries/unity_custom_mcp/commits/main",
   "keywords": [

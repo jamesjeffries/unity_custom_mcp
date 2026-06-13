@@ -1,4 +1,7 @@
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace WeThinks.Mcp.Runtime
 {
@@ -7,9 +10,10 @@ namespace WeThinks.Mcp.Runtime
     /// "first_person_player" generator. Supports walk, mouse look, jump, and a
     /// crawl that shrinks the collider.
     ///
-    /// It reads the legacy Input Manager axes (Horizontal / Vertical / Mouse X /
-    /// Mouse Y), so the project's Player setting "Active Input Handling" must be
-    /// "Input Manager (Old)" or "Both".
+    /// It defaults to Unity's Input System package (the new input handler),
+    /// reading the keyboard and mouse devices directly so no Input Action asset
+    /// is required. When a project is configured for the legacy Input Manager
+    /// only, it transparently falls back to the old <c>Input</c> API.
     ///
     /// This component is precompiled into the package's runtime assembly so the
     /// generator can attach it in a single call without waiting for a script
@@ -25,7 +29,7 @@ namespace WeThinks.Mcp.Runtime
         public float gravity = -20f;
 
         [Header("Look")]
-        public float mouseSensitivity = 2f;
+        public float mouseSensitivity = 0.1f;
         public float maxLookAngle = 85f;
 
         [Header("Crawl")]
@@ -62,8 +66,59 @@ namespace WeThinks.Mcp.Runtime
             Move();
         }
 
-        private bool IsCrawling =>
-            Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
+        // --- Input abstraction (new Input System by default, legacy fallback) ---
+
+        private Vector2 ReadMoveAxis()
+        {
+#if ENABLE_INPUT_SYSTEM
+            Keyboard kb = Keyboard.current;
+            if (kb == null)
+            {
+                return Vector2.zero;
+            }
+
+            float x = (kb.dKey.isPressed ? 1f : 0f) - (kb.aKey.isPressed ? 1f : 0f);
+            float y = (kb.wKey.isPressed ? 1f : 0f) - (kb.sKey.isPressed ? 1f : 0f);
+            return new Vector2(x, y);
+#else
+            return new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+#endif
+        }
+
+        private Vector2 ReadLookDelta()
+        {
+#if ENABLE_INPUT_SYSTEM
+            Mouse mouse = Mouse.current;
+            return mouse != null ? mouse.delta.ReadValue() * mouseSensitivity : Vector2.zero;
+#else
+            return new Vector2(
+                Input.GetAxis("Mouse X"),
+                Input.GetAxis("Mouse Y")) * (mouseSensitivity * 20f);
+#endif
+        }
+
+        private bool ReadJumpPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            return Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame;
+#else
+            return Input.GetKeyDown(KeyCode.Space);
+#endif
+        }
+
+        private bool ReadCrawlHeld()
+        {
+#if ENABLE_INPUT_SYSTEM
+            Keyboard kb = Keyboard.current;
+            return kb != null && (kb.leftCtrlKey.isPressed || kb.cKey.isPressed);
+#else
+            return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
+#endif
+        }
+
+        // --- Behaviour ---
+
+        private bool IsCrawling => ReadCrawlHeld();
 
         private void Look()
         {
@@ -72,11 +127,9 @@ namespace WeThinks.Mcp.Runtime
                 return;
             }
 
-            float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-            float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
-
-            transform.Rotate(Vector3.up, mouseX);
-            _pitch = Mathf.Clamp(_pitch - mouseY, -maxLookAngle, maxLookAngle);
+            Vector2 look = ReadLookDelta();
+            transform.Rotate(Vector3.up, look.x);
+            _pitch = Mathf.Clamp(_pitch - look.y, -maxLookAngle, maxLookAngle);
             _camera.localEulerAngles = new Vector3(_pitch, 0f, 0f);
         }
 
@@ -100,10 +153,9 @@ namespace WeThinks.Mcp.Runtime
         private void Move()
         {
             float speed = IsCrawling ? crawlSpeed : walkSpeed;
-            float h = Input.GetAxis("Horizontal");
-            float v = Input.GetAxis("Vertical");
+            Vector2 axis = ReadMoveAxis();
 
-            Vector3 move = transform.right * h + transform.forward * v;
+            Vector3 move = transform.right * axis.x + transform.forward * axis.y;
             if (move.sqrMagnitude > 1f)
             {
                 move.Normalize();
@@ -112,7 +164,7 @@ namespace WeThinks.Mcp.Runtime
             if (_controller.isGrounded)
             {
                 _verticalVelocity = -1f;
-                if (!IsCrawling && Input.GetKeyDown(KeyCode.Space))
+                if (!IsCrawling && ReadJumpPressed())
                 {
                     _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 }

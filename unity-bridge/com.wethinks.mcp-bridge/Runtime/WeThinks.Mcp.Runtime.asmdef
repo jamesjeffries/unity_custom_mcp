@@ -1,7 +1,9 @@
 {
   "name": "WeThinks.Mcp.Runtime",
   "rootNamespace": "WeThinks.Mcp.Runtime",
-  "references": [],
+  "references": [
+    "Unity.InputSystem"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

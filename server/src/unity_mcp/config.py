@@ -8,6 +8,20 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+# Load variables from a .env file before reading any configuration. We look in
+# the current working directory (and its parents) and in the server project
+# root, so `unity-mcp` picks up secrets without exporting them globally. This is
+# best-effort: if python-dotenv isn't installed, real environment variables are
+# still used.
+try:
+    from dotenv import find_dotenv, load_dotenv
+
+    load_dotenv(find_dotenv(usecwd=True))
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+except ImportError:
+    pass
 
 
 def _get_int(name: str, default: int) -> int:

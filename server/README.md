@@ -35,7 +35,12 @@ unity-mcp
 
 ## Configuration
 
-Environment variables (all optional):
+All settings come from environment variables (all optional). The server also
+loads a `.env` file automatically on startup — copy the template and edit it:
+
+```bash
+cp .env.example .env   # .env is gitignored; .env.example is safe to commit
+```
 
 | Variable                     | Default     | Meaning                                   |
 | ---------------------------- | ----------- | ----------------------------------------- |
@@ -43,6 +48,11 @@ Environment variables (all optional):
 | `UNITY_MCP_PORT`             | `6400`      | Port the Unity bridge listens on          |
 | `UNITY_MCP_CONNECT_TIMEOUT`  | `5.0`       | Seconds to wait when connecting           |
 | `UNITY_MCP_REQUEST_TIMEOUT`  | `30.0`      | Seconds to wait for a command response    |
+
+Optional AI asset generation (textures via an Azure/OpenAI image model, audio via
+ElevenLabs) is configured with the `UNITY_MCP_IMAGE_*` and
+`UNITY_MCP_ELEVENLABS_*` variables — see `.env.example` for the full list. These
+tools stay disabled until their keys are set.
 
 ## Tools
 
@@ -54,6 +64,8 @@ Environment variables (all optional):
 - `console_*` — read and clear the Editor console
 - `editor_*` — editor state and play-mode control
 - `menu_*` — execute allowlisted Editor menu items
+- `generate_*` — high-level generators: first-person player, terrain, scatter
+- `texture_*` / `audio_*` — optional AI texture & audio generation
 
 ## Develop
 

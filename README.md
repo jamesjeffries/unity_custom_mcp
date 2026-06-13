@@ -214,9 +214,12 @@ produces a finished result instead of dozens of round-trips.
   area in one call, optionally raycasting each onto the ground, with random yaw
   and scale. Reproducible via `seed`.
 
-> ℹ️ The first-person controller reads the **legacy Input Manager** axes, so set
-> **Project Settings ▸ Player ▸ Active Input Handling** to *Input Manager (Old)*
-> or *Both*.
+> ℹ️ The first-person controller uses Unity's **Input System** package (the new
+> input handler) by default — the package is listed as a dependency of the MCP
+> Bridge, so Unity installs it automatically. Set **Project Settings ▸ Player ▸
+> Active Input Handling** to *Input System Package (New)* or *Both*. If a project
+> is locked to *Input Manager (Old)*, the controller automatically falls back to
+> the legacy input API, so it still works either way.
 
 ## AI asset generation (optional)
 
@@ -225,6 +228,18 @@ audio and import them straight into the project. These tools are **off by
 default** — until you set the relevant environment variables, each tool returns a
 friendly `"configured": false` notice instead of failing, and everything else
 keeps working.
+
+The easiest way to configure them is a `.env` file. Copy the template and fill in
+your keys (the real `.env` is gitignored; `.env.example` is safe to commit):
+
+```bash
+cd server
+cp .env.example .env   # then edit .env with your endpoints/keys
+```
+
+The server loads `.env` automatically on startup (from the current directory or
+the `server/` folder). You can also export the variables directly instead of
+using a file.
 
 ### Textures (image model)
 

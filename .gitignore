@@ -7,6 +7,11 @@ __pycache__/
 build/
 dist/
 
+# Local secrets / environment (keep .env.example committed)
+.env
+*.env
+!.env.example
+
 # Unity (when this package is embedded in a project)
 [Ll]ibrary/
 [Tt]emp/
