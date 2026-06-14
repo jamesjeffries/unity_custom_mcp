@@ -16,6 +16,7 @@ from . import (
     gameobject,
     generator,
     menu,
+    package,
     scene,
     script,
     texture,
@@ -32,6 +33,7 @@ def register_all(mcp: FastMCP) -> None:
     editor.register(mcp)
     menu.register(mcp)
     generator.register(mcp)
+    package.register(mcp)
     texture.register(mcp)
     audio.register(mcp)
 

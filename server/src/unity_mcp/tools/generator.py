@@ -87,14 +87,23 @@ def register(mcp: FastMCP) -> None:
         min_scale: float = 1.0,
         max_scale: float = 1.0,
         seed: int = 0,
+        ground_layer: str | None = None,
+        ground_layers: list[str] | None = None,
+        require_ground: bool = False,
     ) -> dict[str, Any]:
         """Scatter many instances of a prefab or primitive across an area in one call.
 
         Provide either a prefab asset path (e.g. 'Assets/Trees/Pine.prefab') or a
         primitive ('Cube', 'Sphere', 'Capsule', 'Cylinder', 'Plane', 'Quad').
         Instances are placed randomly within area_size (x,z) around area_center.
-        When align_to_ground is true, each instance is raycast down onto the
-        nearest collider (e.g. a generated terrain) so it sits on the surface.
+        When align_to_ground is true, each instance is raycast down onto a
+        collider so it sits on the surface.
+
+        ground_layer (or ground_layers) restricts that raycast to one or more
+        named layers, so instances land only on the intended ground/terrain and
+        never on stray colliders — the fix for objects floating on oversized
+        colliders. When require_ground is true, an instance whose ray hits no
+        target surface is skipped instead of dropped at the area's base height.
         random_yaw and min/max_scale add variation; seed makes it reproducible.
         """
         return await connection.send_command(
@@ -111,5 +120,8 @@ def register(mcp: FastMCP) -> None:
                 "min_scale": min_scale,
                 "max_scale": max_scale,
                 "seed": seed,
+                "ground_layer": ground_layer,
+                "ground_layers": ground_layers,
+                "require_ground": require_ground,
             },
         )

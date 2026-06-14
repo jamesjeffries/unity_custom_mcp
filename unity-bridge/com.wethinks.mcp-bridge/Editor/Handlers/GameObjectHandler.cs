@@ -17,6 +17,9 @@ namespace WeThinks.Mcp.Editor
             CommandRegistry.Register("gameobject.set_property", SetProperty);
             CommandRegistry.Register("gameobject.set_color", SetColor);
             CommandRegistry.Register("gameobject.set_parent", SetParent);
+            CommandRegistry.Register("gameobject.set_tag", SetTag);
+            CommandRegistry.Register("gameobject.set_layer", SetLayer);
+            CommandRegistry.Register("gameobject.remove_component", RemoveComponent);
             CommandRegistry.Register("gameobject.delete", Delete);
         }
 
@@ -268,7 +271,7 @@ namespace WeThinks.Mcp.Editor
                     $"Property '{propertyName}' not found on '{componentType}'");
             }
 
-            ApplyValue(prop, p.Raw("value"));
+            ApplyValue(prop, p.Raw("value"), p.GetString("value_type"));
             so.ApplyModifiedProperties();
 
             return new Dictionary<string, object>
@@ -279,7 +282,7 @@ namespace WeThinks.Mcp.Editor
             };
         }
 
-        private static void ApplyValue(SerializedProperty prop, object value)
+        private static void ApplyValue(SerializedProperty prop, object value, string valueType)
         {
             switch (prop.propertyType)
             {
@@ -305,10 +308,184 @@ namespace WeThinks.Mcp.Editor
                     }
 
                     break;
+                case SerializedPropertyType.Enum:
+                    ApplyEnum(prop, value);
+                    break;
+                case SerializedPropertyType.ObjectReference:
+                    prop.objectReferenceValue = ResolveObjectReference(value, valueType);
+                    break;
+                case SerializedPropertyType.LayerMask:
+                    prop.intValue = ResolveLayerMask(value);
+                    break;
                 default:
                     throw new NotSupportedException(
                         $"Setting properties of type {prop.propertyType} is not supported.");
             }
+        }
+
+        private static void ApplyEnum(SerializedProperty prop, object value)
+        {
+            if (value is string enumName)
+            {
+                int idx = Array.IndexOf(prop.enumNames, enumName);
+                if (idx < 0)
+                {
+                    idx = Array.IndexOf(prop.enumDisplayNames, enumName);
+                }
+
+                if (idx < 0)
+                {
+                    throw new ArgumentException(
+                        $"Enum value '{enumName}' is not valid. Options: " +
+                        string.Join(", ", prop.enumNames));
+                }
+
+                prop.enumValueIndex = idx;
+                return;
+            }
+
+            int numeric = Convert.ToInt32(value);
+            if (numeric >= 0 && numeric < prop.enumNames.Length)
+            {
+                prop.enumValueIndex = numeric;
+            }
+            else
+            {
+                prop.intValue = numeric;
+            }
+        }
+
+        private static UnityEngine.Object ResolveObjectReference(object value, string valueType)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            string s = value.ToString();
+            if (string.IsNullOrEmpty(s) || s == "null")
+            {
+                return null;
+            }
+
+            // Asset reference: a project path under Assets/.
+            if (s.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+            {
+                Type assetType = ResolveUnityType(valueType);
+                UnityEngine.Object asset = assetType != null
+                    ? AssetDatabase.LoadAssetAtPath(s, assetType)
+                    : null;
+                UnityEngine.Object resolved = asset ?? AssetDatabase.LoadMainAssetAtPath(s);
+                if (resolved == null)
+                {
+                    throw new InvalidOperationException($"Asset not found: '{s}'");
+                }
+
+                return resolved;
+            }
+
+            // Scene reference: a GameObject (or one of its components).
+            GameObject go = HandlerUtil.FindGameObject(s);
+            if (go == null)
+            {
+                throw new InvalidOperationException($"Object reference target not found: '{s}'");
+            }
+
+            if (!string.IsNullOrEmpty(valueType) && valueType != "GameObject")
+            {
+                Type ct = ResolveUnityType(valueType);
+                if (ct != null && typeof(Component).IsAssignableFrom(ct))
+                {
+                    Component comp = go.GetComponent(ct);
+                    if (comp == null)
+                    {
+                        throw new InvalidOperationException(
+                            $"GameObject '{s}' has no '{valueType}' component.");
+                    }
+
+                    return comp;
+                }
+            }
+
+            return go;
+        }
+
+        private static int ResolveLayerMask(object value)
+        {
+            switch (value)
+            {
+                case null:
+                    return 0;
+                case long l:
+                    return (int)l;
+                case double d:
+                    return (int)d;
+                case List<object> names:
+                    int mask = 0;
+                    foreach (object n in names)
+                    {
+                        mask |= LayerToBit(n?.ToString());
+                    }
+
+                    return mask;
+                default:
+                    string s = value.ToString();
+                    if (int.TryParse(s, out int parsed))
+                    {
+                        return parsed;
+                    }
+
+                    if (s == "Everything")
+                    {
+                        return ~0;
+                    }
+
+                    if (s == "Nothing")
+                    {
+                        return 0;
+                    }
+
+                    return LayerToBit(s);
+            }
+        }
+
+        private static int LayerToBit(string layerName)
+        {
+            if (string.IsNullOrEmpty(layerName))
+            {
+                return 0;
+            }
+
+            int layer = LayerMask.NameToLayer(layerName);
+            return layer >= 0 ? 1 << layer : 0;
+        }
+
+        private static Type ResolveUnityType(string typeName)
+        {
+            if (string.IsNullOrEmpty(typeName))
+            {
+                return null;
+            }
+
+            Type direct = Type.GetType($"UnityEngine.{typeName}, UnityEngine") ??
+                          Type.GetType(typeName);
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (var t in assembly.GetTypes())
+                {
+                    if (t.Name == typeName || t.FullName == typeName)
+                    {
+                        return t;
+                    }
+                }
+            }
+
+            return null;
         }
 
         private static object SetColor(CommandParams p)
@@ -430,6 +607,185 @@ namespace WeThinks.Mcp.Editor
                 { "target", HandlerUtil.GetHierarchyPath(go.transform) },
                 { "parent", string.IsNullOrEmpty(parent) ? null : parent }
             };
+        }
+
+        private static object SetTag(CommandParams p)
+        {
+            GameObject go = HandlerUtil.RequireGameObject(p.GetString("target"));
+            string tag = p.GetString("tag");
+            if (string.IsNullOrEmpty(tag))
+            {
+                throw new ArgumentException("'tag' is required.");
+            }
+
+            if (p.GetBool("create_if_missing", true))
+            {
+                EnsureTagExists(tag);
+            }
+
+            Undo.RecordObject(go, "MCP Set Tag");
+            go.tag = tag;
+            return new Dictionary<string, object>
+            {
+                { "target", HandlerUtil.GetHierarchyPath(go.transform) },
+                { "tag", go.tag }
+            };
+        }
+
+        private static object SetLayer(CommandParams p)
+        {
+            GameObject go = HandlerUtil.RequireGameObject(p.GetString("target"));
+            string layerName = p.GetString("layer");
+            bool includeChildren = p.GetBool("include_children", false);
+
+            int layer;
+            if (!string.IsNullOrEmpty(layerName))
+            {
+                layer = LayerMask.NameToLayer(layerName);
+                if (layer < 0 && p.GetBool("create_if_missing", true))
+                {
+                    layer = EnsureLayerExists(layerName);
+                }
+
+                if (layer < 0)
+                {
+                    throw new ArgumentException($"Layer '{layerName}' does not exist.");
+                }
+            }
+            else
+            {
+                layer = p.GetInt("layer_index", 0);
+            }
+
+            Undo.RecordObject(go, "MCP Set Layer");
+            SetLayerRecursive(go, layer, includeChildren);
+            return new Dictionary<string, object>
+            {
+                { "target", HandlerUtil.GetHierarchyPath(go.transform) },
+                { "layer", layer },
+                { "layerName", LayerMask.LayerToName(layer) },
+                { "includeChildren", includeChildren }
+            };
+        }
+
+        private static object RemoveComponent(CommandParams p)
+        {
+            GameObject go = HandlerUtil.RequireGameObject(p.GetString("target"));
+            string typeName = p.GetString("component_type");
+            if (string.IsNullOrEmpty(typeName))
+            {
+                throw new ArgumentException("'component_type' is required.");
+            }
+
+            Component target = null;
+            foreach (Component c in go.GetComponents<Component>())
+            {
+                if (c != null &&
+                    (c.GetType().Name == typeName || c.GetType().FullName == typeName))
+                {
+                    target = c;
+                    break;
+                }
+            }
+
+            if (target == null)
+            {
+                throw new InvalidOperationException(
+                    $"Component '{typeName}' not found on '{go.name}'.");
+            }
+
+            if (target is Transform)
+            {
+                throw new InvalidOperationException("The Transform component cannot be removed.");
+            }
+
+            string path = HandlerUtil.GetHierarchyPath(go.transform);
+            Undo.DestroyObjectImmediate(target);
+            return new Dictionary<string, object>
+            {
+                { "removed", true },
+                { "target", path },
+                { "component", typeName }
+            };
+        }
+
+        private static void SetLayerRecursive(GameObject go, int layer, bool recurse)
+        {
+            go.layer = layer;
+            if (!recurse)
+            {
+                return;
+            }
+
+            foreach (Transform child in go.transform)
+            {
+                SetLayerRecursive(child.gameObject, layer, true);
+            }
+        }
+
+        private static void EnsureTagExists(string tag)
+        {
+            foreach (string existing in UnityEditorInternal.InternalEditorUtility.tags)
+            {
+                if (existing == tag)
+                {
+                    return;
+                }
+            }
+
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
+            if (assets.Length == 0)
+            {
+                return;
+            }
+
+            var so = new SerializedObject(assets[0]);
+            SerializedProperty tagsProp = so.FindProperty("tags");
+            if (tagsProp == null)
+            {
+                return;
+            }
+
+            int idx = tagsProp.arraySize;
+            tagsProp.InsertArrayElementAtIndex(idx);
+            tagsProp.GetArrayElementAtIndex(idx).stringValue = tag;
+            so.ApplyModifiedProperties();
+        }
+
+        private static int EnsureLayerExists(string layerName)
+        {
+            int existing = LayerMask.NameToLayer(layerName);
+            if (existing >= 0)
+            {
+                return existing;
+            }
+
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
+            if (assets.Length == 0)
+            {
+                return -1;
+            }
+
+            var so = new SerializedObject(assets[0]);
+            SerializedProperty layersProp = so.FindProperty("layers");
+            if (layersProp == null)
+            {
+                return -1;
+            }
+
+            // User-definable layers occupy slots 8..31.
+            for (int i = 8; i < layersProp.arraySize; i++)
+            {
+                SerializedProperty el = layersProp.GetArrayElementAtIndex(i);
+                if (string.IsNullOrEmpty(el.stringValue))
+                {
+                    el.stringValue = layerName;
+                    so.ApplyModifiedProperties();
+                    return i;
+                }
+            }
+
+            return -1;
         }
 
         private static object Delete(CommandParams p)

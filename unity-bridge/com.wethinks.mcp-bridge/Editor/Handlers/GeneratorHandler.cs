@@ -187,6 +187,8 @@ namespace WeThinks.Mcp.Editor
             float maxScale = p.GetFloat("max_scale", 1f);
             int seed = p.GetInt("seed", 0);
             string parentName = p.GetString("parent");
+            int groundMask = ResolveGroundMask(p);
+            bool requireGround = p.GetBool("require_ground", false);
 
             GameObject prefab = null;
             if (!string.IsNullOrEmpty(prefabPath))
@@ -229,10 +231,21 @@ namespace WeThinks.Mcp.Editor
                 float rz = c.z + ((float)rng.NextDouble() - 0.5f) * s.z;
                 float ry = c.y;
 
-                if (alignGround && Physics.Raycast(
-                        new Vector3(rx, rayTop, rz), Vector3.down, out RaycastHit hit, rayLength))
+                if (alignGround)
                 {
-                    ry = hit.point.y;
+                    bool hitGround = Physics.Raycast(
+                        new Vector3(rx, rayTop, rz), Vector3.down, out RaycastHit hit,
+                        rayLength, groundMask, QueryTriggerInteraction.Ignore);
+                    if (hitGround)
+                    {
+                        ry = hit.point.y;
+                    }
+                    else if (requireGround)
+                    {
+                        // No surface on the target layer(s) here: skip rather
+                        // than dropping the instance at the area's base height.
+                        continue;
+                    }
                 }
 
                 GameObject inst = prefab != null
@@ -263,6 +276,35 @@ namespace WeThinks.Mcp.Editor
         // ------------------------------------------------------------------
         // Helpers
         // ------------------------------------------------------------------
+        private static int ResolveGroundMask(CommandParams p)
+        {
+            int mask = 0;
+            string single = p.GetString("ground_layer");
+            if (!string.IsNullOrEmpty(single))
+            {
+                int l = LayerMask.NameToLayer(single);
+                if (l >= 0)
+                {
+                    mask |= 1 << l;
+                }
+            }
+
+            if (p.Raw("ground_layers") is List<object> names)
+            {
+                foreach (object n in names)
+                {
+                    int l = LayerMask.NameToLayer(n?.ToString());
+                    if (l >= 0)
+                    {
+                        mask |= 1 << l;
+                    }
+                }
+            }
+
+            // Default to hitting everything when no ground layer is specified.
+            return mask == 0 ? ~0 : mask;
+        }
+
         private static bool SceneHasAudioListener()
         {
             return UnityEngine.Object.FindFirstObjectByType<AudioListener>() != null;
